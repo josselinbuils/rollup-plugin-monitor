@@ -1,0 +1,26 @@
+{
+  "name": "@josselinbuils/rollup-plugin-monitor",
+  "version": "0.1.0",
+  "description": "Rollup plugin to monitor execution times of other plugins.",
+  "author": "Josselin BUILS",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rimraf dist && rollup -c"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/josselinbuils/rollup-plugin-monitor.git"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^4.0.0",
+    "prettier": "^2.0.4",
+    "rimraf": "^3.0.2",
+    "rollup": "^2.3.4",
+    "tslib": "^1.11.1",
+    "typescript": "^3.8.3"
+  },
+  "prettier": {
+    "singleQuote": true
+  }
+}
