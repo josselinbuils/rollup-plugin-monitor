@@ -1,68 +1,66 @@
 import { Plugin } from 'rollup';
-
-const MIN_DURATION = 1;
+import { PLUGIN_METHODS, PLUGIN_NAME } from './constants';
 
 export default function monitor(): Plugin {
-  const transformCalls = [] as TransformCall[];
+  const executionTimes = {} as { [plugin: string]: number };
 
   return {
-    name: 'monitor',
+    name: PLUGIN_NAME,
     buildStart({ plugins }) {
       if (plugins === undefined) {
         return;
       }
 
       plugins.forEach((plugin) => {
-        if (typeof plugin.transform === 'function') {
-          const { name, transform } = plugin;
+        const name = (plugin as any).pluginName || plugin.name;
 
-          plugin.transform = function (code, id) {
-            const startTime = Date.now();
-            const result = transform.call(this, code, id);
-            const duration = Date.now() - startTime;
-
-            if (duration >= MIN_DURATION) {
-              transformCalls.push({
-                duration,
-                filePath: id,
-                pluginName: name,
-              });
-            }
-            return result;
-          };
+        if (name === PLUGIN_NAME) {
+          return;
         }
+
+        executionTimes[name] = 0;
+
+        PLUGIN_METHODS.forEach((pluginMethod) => {
+          const originalMethod = plugin[pluginMethod] as any;
+
+          if (typeof originalMethod === 'function') {
+            (plugin as any)[pluginMethod] = function (...args: any[]) {
+              const startTime = process.hrtime();
+              const result = originalMethod.apply(this, args);
+
+              if (result instanceof Promise) {
+                result.then(() => {
+                  executionTimes[name] += getDurationMs(startTime);
+                });
+              } else {
+                executionTimes[name] += getDurationMs(startTime);
+              }
+              return result;
+            };
+          }
+        });
       });
     },
     writeBundle() {
-      const fileStats = {} as {
-        [filePath: string]: { duration: number; pluginName: string }[];
-      };
-
-      transformCalls.sort((a, b) => {
-        if (a.filePath === b.filePath) {
-          return a.pluginName < b.pluginName
+      const sortedExecutionTimes = Object.entries(executionTimes)
+        .map(([name, executionTime]) => ({
+          executionTime: Math.ceil(executionTime),
+          name,
+        }))
+        .sort((a, b) =>
+          a.executionTime > b.executionTime
             ? -1
-            : a.pluginName > b.pluginName
+            : b.executionTime > a.executionTime
             ? 1
-            : 0;
-        }
-        return a.filePath < b.filePath ? -1 : a.filePath > b.filePath ? 1 : 0;
-      });
+            : 0
+        );
 
-      transformCalls.forEach(({ duration, filePath, pluginName }) => {
-        if (fileStats[filePath] === undefined) {
-          fileStats[filePath] = [];
-        }
-        fileStats[filePath].push({ duration, pluginName });
-      });
-
-      console.log(fileStats);
+      console.log(sortedExecutionTimes);
     },
   };
 }
 
-interface TransformCall {
-  duration: number;
-  filePath: string;
-  pluginName: string;
+function getDurationMs(startTime: [number, number]): number {
+  const [seconds, nanoseconds] = process.hrtime(startTime);
+  return (seconds * 1e9 + nanoseconds) / 1e6;
 }
